@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>快樂國小 好書推薦 </title>
+<title>書籍推薦（馬卡龍配色｜兩本一頁｜可儲存雲端）</title>
 <style>
   :root{
     /* 馬卡龍色板 */
@@ -78,12 +78,18 @@
 </head>
 <body>
 <header>
-  <h1>快樂國小|好書推薦</h1>
+  <h1>書籍推薦｜馬卡龍風</h1>
   <div class="bar">
     <input id="q" type="text" placeholder="關鍵字（例：intitle:閱讀 素養 或 author:幾米）">
     <button id="searchBtn">查詢</button>
     <span class="chip">每頁 2 本</span>
     <button id="saveAllBtn" title="把右側收藏清單上傳到雲端">收藏清單 → 上傳雲端</button>
+    <button id="latestBtn" title="讀取試算表中的最新推薦">最新推薦</button>
+    <select id="latestLimit">
+      <option value="6" selected>最新 6 筆</option>
+      <option value="10">最新 10 筆</option>
+      <option value="20">最新 20 筆</option>
+    </select>
   </div>
   <div id="status" class="notice" style="display:none"></div>
 </header>
@@ -112,6 +118,7 @@ const USER_NAME = 'james su'; // 可替換成登入者名稱
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
 const qs = new URLSearchParams(location.search);
+let viewingLatest = false; // 目前是否在看「最新推薦」
 const sanitize = (s='') => (s+'').replace(/[<>]/g, m=>({ '<':'&lt;','>':'&gt;' }[m]));
 
 /** ======= 狀態 ======= **/
@@ -181,6 +188,26 @@ function pickFromOLSearch(doc){
   };
 }
 
+// 從 GAS 讀取最新推薦
+async function fetchLatest(limit=6){
+  const url = `${GAS_ENDPOINT}?limit=${encodeURIComponent(limit)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if(!res.ok || !data.ok) throw new Error('讀取最新推薦失敗');
+  const items = (data.items||[]).map(it => ({
+    id: it.isbn || (it.title||'') + (it.authors||''),
+    source: it.source || 'sheet',
+    title: it.title || '',
+    authors: Array.isArray(it.authors) ? it.authors : (it.authors ? String(it.authors).split(',').map(s=>s.trim()).filter(Boolean) : []),
+    publisher: it.publisher || '',
+    publishedDate: it.publishedDate || '',
+    description: it.reason || '',
+    cover: '',
+    isbn: it.isbn || ''
+  }));
+  return items;
+}
+
 /** ======= 渲染（兩本一頁） ======= **/
 function paginate(items){ // 2 本一頁
   const out = [];
@@ -202,7 +229,7 @@ function render(){
 
   // 分頁列
   const pager = $('#pager');
-  $('#pageInfo').textContent = `第 ${state.page}/${pageCount} 頁（共 ${state.items.length} 本）`;
+  $('#pageInfo').textContent = (viewingLatest ? '最新推薦｜' : '') + `第 ${state.page}/${pageCount} 頁（共 ${state.items.length} 本）`;
   pager.style.display = pageCount > 1 ? 'flex' : 'none';
   $('#prevBtn').disabled = state.page <= 1;
   $('#nextBtn').disabled = state.page >= pageCount;
@@ -353,6 +380,7 @@ async function postToGAS(payload){
 
 /** ======= 互動 ======= **/
 async function handleSearch(){
+  viewingLatest = false; // 回到搜尋模式
   const q = $('#q').value.trim();
   if(!q){ alert('請輸入關鍵字'); return; }
   $('#status').style.display = 'block'; $('#status').textContent = '查詢中…';
@@ -375,6 +403,20 @@ $('#nextBtn').addEventListener('click', ()=>{
   if(state.page<pages){ state.page++; render(); }
 });
 $('#saveAllBtn').addEventListener('click', uploadAllFavs);
+$('#latestBtn').addEventListener('click', async ()=>{
+  try{
+    $('#status').style.display='block'; $('#status').textContent='讀取最新推薦中…';
+    const limit = parseInt($('#latestLimit').value,10) || 6;
+    const items = await fetchLatest(limit);
+    viewingLatest = true;
+    state.items = items;
+    state.page = 1;
+    $('#status').style.display='none';
+    render();
+  }catch(e){
+    $('#status').style.display='block'; $('#status').textContent='讀取最新推薦失敗';
+  }
+});
 
 renderFavs(); // 初始化收藏清單
 // URL 若有 q 參數就自動查
