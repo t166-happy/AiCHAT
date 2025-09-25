@@ -1,385 +1,364 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 聊天機器人</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>書籍推薦（馬卡龍配色｜兩本一頁｜可儲存雲端）</title>
+<style>
+  :root{
+    /* 馬卡龍色板 */
+    --mint: #b8e1d9;
+    --peach: #ffd8cc;
+    --lavender: #e6d6ff;
+    --lemon: #fff4b8;
+    --sky: #cfe9ff;
+    --ink: #2e2e2e;
+    --muted: #666;
+    --card-bg: #ffffffcc;
+    --radius: 16px;
+    --gap: 16px;
+  }
+  body{
+    font-family: system-ui, -apple-system, "Noto Sans TC", Roboto, Arial;
+    margin: 0; color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at -10% -10%, var(--mint), transparent 60%),
+      radial-gradient(1000px 600px at 110% 0%, var(--peach), transparent 60%),
+      radial-gradient(900px 600px at 50% 120%, var(--lavender), transparent 60%),
+      #fdfdfd;
+    min-height: 100vh;
+  }
+  header{
+    padding: 24px 20px;
+    backdrop-filter: blur(6px);
+  }
+  h1{ margin: 0 0 12px; font-size: 24px; }
+  .bar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  input, select, button, textarea{
+    font: inherit;
+    padding: 10px 12px; border-radius: 999px; border: 1px solid #ddd; background: #fff;
+  }
+  input[type="text"]{ min-width: 260px; }
+  button{
+    cursor: pointer; border: none; color: #222;
+    background: linear-gradient(135deg, var(--lemon), var(--sky));
+  }
+  button:hover{ filter: brightness(0.98); }
+  .chip{ display:inline-block; padding:4px 10px; border-radius:999px; background:#fff; border:1px solid #eee; color: var(--muted); font-size:12px; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+  .container{ padding: 0 20px 32px; max-width: 1080px; margin: 0 auto; }
+  .notice{ margin: 12px 0; padding: 10px 14px; background: #ffffffaa; border:1px solid #eee; border-radius: var(--radius); }
+  .grid{
+    margin-top: 12px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
+  }
+  @media (max-width: 820px){ .grid{ grid-template-columns: 1fr; } }
+  .card{
+    display:grid; grid-template-columns: 140px 1fr; gap: var(--gap);
+    background: var(--card-bg); border:1px solid #eee; border-radius: var(--radius);
+    box-shadow: 0 8px 20px rgba(0,0,0,.06);
+    padding: 14px;
+    backdrop-filter: blur(4px);
+  }
+  .cover{ width:140px; height:200px; object-fit:cover; border-radius: 12px; background:#f3f3f3; }
+  .title{ margin: 0 0 6px; font-size: 20px; }
+  .meta{ margin: 2px 0; color: var(--muted); font-size: 14px; }
+  .desc{ margin-top: 6px; line-height: 1.6; font-size: 14px; max-height: 7.5em; overflow: auto; }
+  .reason{ width:100%; min-height: 84px; border-radius: 12px; border:1px solid #ddd; padding:10px 12px; background: #fff; }
+  .actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top: 8px; }
+  .pill{ padding:6px 10px; border-radius:999px; background: #fff; border:1px solid #eee; font-size: 13px; }
 
-        .chat-container {
-            width: 90%;
-            max-width: 800px;
-            height: 80vh;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .chat-header {
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            font-size: 1.2em;
-            font-weight: 600;
-        }
-
-        .chat-messages {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            background: #f8fafc;
-        }
-
-        .message {
-            max-width: 80%;
-            padding: 12px 18px;
-            border-radius: 18px;
-            word-wrap: break-word;
-            animation: messageSlide 0.3s ease-out;
-        }
-
-        @keyframes messageSlide {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .user-message {
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
-            align-self: flex-end;
-            margin-left: auto;
-        }
-
-        .bot-message {
-            background: white;
-            color: #1f2937;
-            align-self: flex-start;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .chat-input-container {
-            padding: 20px;
-            background: white;
-            border-top: 1px solid #e5e7eb;
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        .chat-input {
-            flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e5e7eb;
-            border-radius: 25px;
-            font-size: 16px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .chat-input:focus {
-            border-color: #4f46e5;
-        }
-
-        .send-button {
-            padding: 12px 20px;
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-            min-width: 80px;
-        }
-
-        .send-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-        }
-
-        .send-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .loading {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #6b7280;
-            font-style: italic;
-        }
-
-        .loading-dots {
-            display: flex;
-            gap: 4px;
-        }
-
-        .loading-dot {
-            width: 6px;
-            height: 6px;
-            background: #6b7280;
-            border-radius: 50%;
-            animation: loadingDot 1.4s ease-in-out infinite both;
-        }
-
-        .loading-dot:nth-child(1) { animation-delay: -0.32s; }
-        .loading-dot:nth-child(2) { animation-delay: -0.16s; }
-        .loading-dot:nth-child(3) { animation-delay: 0s; }
-
-        @keyframes loadingDot {
-            0%, 80%, 100% {
-                transform: scale(0);
-                opacity: 0.5;
-            }
-            40% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        .config-section {
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f1f5f9;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-            display: none;
-        }
-
-        .config-label {
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #374151;
-        }
-
-        .config-input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-
-        @media (max-width: 768px) {
-            .chat-container {
-                width: 95%;
-                height: 85vh;
-                border-radius: 15px;
-            }
-            
-            .message {
-                max-width: 90%;
-            }
-        }
-    </style>
+  .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top: 10px; }
+  .pager{ display:flex; gap:8px; align-items:center; margin-top: 16px; }
+  .side{
+    margin-top: 10px; padding: 12px; background:#ffffffaa; border:1px solid #eee; border-radius: var(--radius);
+  }
+  .side h3{ margin: 0 0 6px; font-size: 16px; }
+  .small{ font-size: 12px; color: var(--muted); }
+</style>
 </head>
 <body>
-    <div class="chat-container">
-        <div class="chat-header">
-            🤖 AI 聊天助手
-        </div>
-        
-        <div class="chat-messages" id="chatMessages">
-            <input type="hidden" 
-                   id="webhookUrl" 
-                   value="https://t166-happy.app.n8n.cloud/webhook/webhook/bd428294-266a-4447-97d6-e002c6c55593">
-            
-            <div class="bot-message">
-                👋 你好！我是 AI 助手，有什麼可以幫助你的嗎？
-            </div>
-        </div>
-        
-        <div class="chat-input-container">
-            <input type="text" 
-                   class="chat-input" 
-                   id="messageInput" 
-                   placeholder="輸入訊息..."
-                   onkeypress="handleKeyPress(event)">
-            <button class="send-button" onclick="sendMessage()" id="sendButton">
-                發送
-            </button>
-        </div>
+<header>
+  <h1>書籍推薦｜馬卡龍風</h1>
+  <div class="bar">
+    <input id="q" type="text" placeholder="關鍵字（例：intitle:閱讀 素養 或 author:幾米）">
+    <button id="searchBtn">查詢</button>
+    <span class="chip">每頁 2 本</span>
+    <button id="saveAllBtn" title="把右側收藏清單上傳到雲端">收藏清單 → 上傳雲端</button>
+  </div>
+  <div id="status" class="notice" style="display:none"></div>
+</header>
+
+<div class="container">
+  <div class="grid" id="grid"></div>
+
+  <div class="pager" id="pager" style="display:none;">
+    <button id="prevBtn">← 上一頁</button>
+    <span id="pageInfo" class="pill"></span>
+    <button id="nextBtn">下一頁 →</button>
+  </div>
+
+  <div class="side">
+    <h3>我的收藏清單</h3>
+    <div id="favList" class="small">尚未加入任何書籍</div>
+  </div>
+</div>
+
+<script>
+/** ======= 設定區 ======= **/
+const GAS_ENDPOINT = 'PUT_YOUR_WEB_APP_URL_HERE'; // ← 換成你的 Apps Script Web App URL
+const USER_NAME = 'james su'; // 可替換成登入者名稱或你的名字
+
+/** ======= 小工具 ======= **/
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const qs = new URLSearchParams(location.search);
+const sanitize = (s='') => (s+'').replace(/[<>]/g, m=>({ '<':'&lt;','>':'&gt;' }[m]));
+
+/** ======= 狀態 ======= **/
+let state = {
+  items: [],    // 搜尋結果（正規化）
+  page: 1,      // 每頁 2 本
+  perPage: 2,
+  favs: loadFavs() // 收藏清單（localStorage）
+};
+
+function loadFavs(){
+  try{ return JSON.parse(localStorage.getItem('book_favs')||'[]'); }catch(e){ return []; }
+}
+function saveFavs(){
+  localStorage.setItem('book_favs', JSON.stringify(state.favs));
+  renderFavs();
+}
+function inFavs(isbn){ return state.favs.some(x => x.isbn === isbn); }
+
+/** ======= API 查詢：Google Books → Open Library ======= **/
+async function searchBooks(q, startIndex=0, maxResults=20){
+  // Google Books
+  try{
+    const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&startIndex=${startIndex}&maxResults=${Math.min(40, maxResults)}`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('GB fail');
+    const data = await res.json();
+    if(!data.items?.length) throw new Error('no items');
+    return data.items.map(pickFromGB);
+  }catch(e){
+    // Open Library
+    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=${maxResults}`;
+    const res = await fetch(url);
+    if(!res.ok) return [];
+    const data = await res.json();
+    return (data.docs||[]).map(pickFromOLSearch);
+  }
+}
+
+function pickFromGB(item){
+  const v = item.volumeInfo || {};
+  const isbn = v.industryIdentifiers?.find(x => (x.type||'').includes('ISBN'))?.identifier || '';
+  return {
+    id: item.id || isbn || (v.title||'')+(v.authors?.[0]||''),
+    source: 'google_books',
+    title: v.title || '',
+    authors: v.authors || [],
+    publisher: v.publisher || '',
+    publishedDate: v.publishedDate || '',
+    description: v.description || '',
+    cover: v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail || '',
+    isbn
+  };
+}
+function pickFromOLSearch(doc){
+  const isbn = doc.isbn?.[0] || '';
+  return {
+    id: doc.key || isbn || (doc.title||''),
+    source: 'open_library',
+    title: doc.title || '',
+    authors: doc.author_name || [],
+    publisher: (doc.publisher && doc.publisher[0]) || '',
+    publishedDate: doc.first_publish_year || '',
+    description: doc.subtitle || '',
+    cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : '',
+    isbn
+  };
+}
+
+/** ======= 渲染（兩本一頁） ======= **/
+function paginate(items){ // 2 本一頁
+  const out = [];
+  for(let i=0;i<items.length;i+=state.perPage){
+    out.push(items.slice(i, i+state.perPage));
+  }
+  return out;
+}
+
+function render(){
+  const pages = paginate(state.items);
+  const pageCount = Math.max(pages.length, 1);
+  const current = pages[state.page-1] || [];
+
+  const grid = $('#grid');
+  grid.innerHTML = '';
+
+  current.forEach(book => grid.appendChild(renderCard(book)));
+
+  // 分頁列
+  const pager = $('#pager');
+  $('#pageInfo').textContent = `第 ${state.page}/${pageCount} 頁（共 ${state.items.length} 本）`;
+  pager.style.display = pageCount > 1 ? 'flex' : 'none';
+  $('#prevBtn').disabled = state.page <= 1;
+  $('#nextBtn').disabled = state.page >= pageCount;
+}
+
+function renderCard(book){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <img class="cover" alt="封面" src="${book.cover || ''}">
+    <div>
+      <h3 class="title">${sanitize(book.title) || '（無標題）'}</h3>
+      <div class="meta">作者：${book.authors?.length ? sanitize(book.authors.join('、')) : '不詳'}</div>
+      <div class="meta">出版：${[book.publisher, book.publishedDate].filter(Boolean).map(sanitize).join('，') || '—'}</div>
+      <div class="desc">${sanitize(book.description || '（暫無介紹）').replace(/\n/g,'<br>')}</div>
+      <div class="actions">
+        <button class="favBtn">${inFavs(book.isbn) ? '✓ 已加入' : '加入收藏'}</button>
+        <button class="uploadBtn" title="只上傳這一本到雲端">上傳到雲端</button>
+        <span class="pill">${book.source === 'google_books' ? 'Google Books' : 'Open Library'}</span>
+      </div>
+      <label class="meta"><strong>推薦理由</strong></label>
+      <textarea class="reason" placeholder="寫下你推薦這本書的原因"></textarea>
     </div>
+  `;
 
-    <script>
-        let isLoading = false;
+  const reasonKey = `reason_${book.isbn || book.id}`;
+  const reasonEl = card.querySelector('.reason');
+  reasonEl.value = localStorage.getItem(reasonKey) || '';
 
-        function handleKeyPress(event) {
-            if (event.key === 'Enter' && !isLoading) {
-                sendMessage();
-            }
-        }
+  reasonEl.addEventListener('input', () => {
+    localStorage.setItem(reasonKey, reasonEl.value);
+    // 若在收藏清單裡，也同步更新理由
+    const idx = state.favs.findIndex(x => x.isbn === book.isbn);
+    if(idx !== -1){ state.favs[idx].reason = reasonEl.value; saveFavs(); }
+  });
 
-        async function sendMessage() {
-            const messageInput = document.getElementById('messageInput');
-            const webhookUrl = document.getElementById('webhookUrl').value.trim();
-            const message = messageInput.value.trim();
-            
-            if (!message || isLoading) return;
-            
-            if (!webhookUrl) {
-                alert('系統配置錯誤，請聯繫管理員！');
-                return;
-            }
+  // 加入收藏
+  const favBtn = card.querySelector('.favBtn');
+  favBtn.addEventListener('click', () => {
+    if(inFavs(book.isbn)){
+      state.favs = state.favs.filter(x => x.isbn !== book.isbn);
+      favBtn.textContent = '加入收藏';
+    }else{
+      state.favs.push({
+        isbn: book.isbn || '',
+        title: book.title || '',
+        authors: book.authors || [],
+        publisher: book.publisher || '',
+        publishedDate: book.publishedDate || '',
+        reason: reasonEl.value || '',
+        source: book.source || ''
+      });
+      favBtn.textContent = '✓ 已加入';
+    }
+    saveFavs();
+  });
 
-            // 添加用戶訊息
-            addMessage(message, 'user');
-            messageInput.value = '';
-            
-            // 顯示載入狀態
-            setLoading(true);
-            const loadingMessageId = addLoadingMessage();
+  // 單本上傳
+  const uploadBtn = card.querySelector('.uploadBtn');
+  uploadBtn.addEventListener('click', async () => {
+    const payload = {
+      user: USER_NAME,
+      items: [{
+        isbn: book.isbn || '',
+        title: book.title || '',
+        authors: book.authors || [],
+        publisher: book.publisher || '',
+        publishedDate: book.publishedDate || '',
+        reason: reasonEl.value || '',
+        source: book.source || ''
+      }]
+    };
+    uploadBtn.disabled = true; uploadBtn.textContent = '上傳中…';
+    const ok = await postToGAS(payload);
+    uploadBtn.textContent = ok ? '已上傳 ✓' : '上傳失敗';
+    setTimeout(() => { uploadBtn.disabled = false; uploadBtn.textContent = '上傳到雲端'; }, 2000);
+  });
 
-            try {
-                // 發送到 n8n webhook
-                const response = await fetch(webhookUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        chatInput: message,
-                        timestamp: new Date().toISOString()
-                    }),
-                    mode: 'cors'
-                });
+  return card;
+}
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
+/** ======= 收藏清單渲染 / 批次上傳 ======= **/
+function renderFavs(){
+  const box = $('#favList');
+  if(!state.favs.length){ box.textContent = '尚未加入任何書籍'; return; }
+  box.innerHTML = '';
+  state.favs.forEach((b, i) => {
+    const row = document.createElement('div');
+    row.style.margin = '6px 0';
+    row.innerHTML = `
+      <span>${sanitize(b.title)} <span class="small">（${sanitize(b.isbn||'無ISBN')}）</span></span>
+      <button data-i="${i}" class="rm" style="margin-left:8px;">移除</button>
+    `;
+    box.appendChild(row);
+  });
+  $$('.rm', box).forEach(btn => btn.addEventListener('click', (e)=>{
+    const i = parseInt(e.target.dataset.i, 10);
+    state.favs.splice(i, 1); saveFavs(); render();
+  }));
+}
 
-                const result = await response.json();
-                
-                // 移除載入訊息
-                removeLoadingMessage(loadingMessageId);
-                
-                // 添加 AI 回應 - 處理不同的回應格式
-                let botMessage = '';
-                if (typeof result === 'string') {
-                    botMessage = result;
-                } else if (result.output) {
-                    botMessage = result.output;
-                } else if (result.text) {
-                    botMessage = result.text;
-                } else if (result.message) {
-                    botMessage = result.message;
-                } else {
-                    botMessage = '收到回應但格式不明確';
-                }
-                
-                addMessage(botMessage || '抱歉，我沒有收到回應。', 'bot');
-                
-            } catch (error) {
-                console.error('詳細錯誤:', error);
-                removeLoadingMessage(loadingMessageId);
-                
-                let errorMessage = '發生錯誤：';
-                if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                    errorMessage += '無法連接到伺服器，可能是網路問題或CORS設定問題。';
-                } else if (error.message.includes('HTTP')) {
-                    errorMessage += error.message;
-                } else {
-                    errorMessage += error.message;
-                }
-                
-                addMessage(errorMessage + '\n\n請檢查：\n1. n8n工作流程是否已啟動\n2. webhook URL是否正確\n3. 網路連線是否正常', 'bot');
-            } finally {
-                setLoading(false);
-            }
-        }
+async function uploadAllFavs(){
+  if(!state.favs.length){ alert('收藏清單是空的'); return; }
+  const payload = { user: USER_NAME, items: state.favs };
+  $('#saveAllBtn').disabled = true; $('#saveAllBtn').textContent = '上傳中…';
+  const ok = await postToGAS(payload);
+  $('#saveAllBtn').textContent = ok ? '上傳完成 ✓' : '上傳失敗';
+  setTimeout(()=>{ $('#saveAllBtn').disabled = false; $('#saveAllBtn').textContent = '收藏清單 → 上傳雲端'; }, 2000);
+}
 
-        function addMessage(text, sender) {
-            const messagesContainer = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}-message`;
-            
-            // 處理換行符號
-            const formattedText = text.replace(/\n/g, '<br>');
-            messageDiv.innerHTML = formattedText;
-            
-            messagesContainer.appendChild(messageDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
+/** ======= 與 GAS 通訊 ======= **/
+async function postToGAS(payload){
+  try{
+    const res = await fetch(GAS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      mode: 'cors'
+    });
+    const data = await res.json().catch(()=>({}));
+    return res.ok && data.ok;
+  }catch(e){
+    console.error(e);
+    return false;
+  }
+}
 
-        function addLoadingMessage() {
-            const messagesContainer = document.getElementById('chatMessages');
-            const loadingDiv = document.createElement('div');
-            const loadingId = 'loading-' + Date.now();
-            loadingDiv.id = loadingId;
-            loadingDiv.className = 'message bot-message loading';
-            loadingDiv.innerHTML = `
-                正在思考中
-                <div class="loading-dots">
-                    <div class="loading-dot"></div>
-                    <div class="loading-dot"></div>
-                    <div class="loading-dot"></div>
-                </div>
-            `;
-            messagesContainer.appendChild(loadingDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            return loadingId;
-        }
+/** ======= 互動 ======= **/
+async function handleSearch(){
+  const q = $('#q').value.trim();
+  if(!q){ alert('請輸入關鍵字'); return; }
+  $('#status').style.display = 'block'; $('#status').textContent = '查詢中…';
+  try{
+    const items = await searchBooks(q, 0, 20);
+    state.items = items;
+    state.page = 1;
+    $('#status').style.display = 'none';
+    render(); // 兩本一頁
+  }catch(e){
+    $('#status').textContent = '查詢失敗，請稍後再試';
+  }
+}
 
-        function removeLoadingMessage(loadingId) {
-            const loadingElement = document.getElementById(loadingId);
-            if (loadingElement) {
-                loadingElement.remove();
-            }
-        }
+$('#searchBtn').addEventListener('click', handleSearch);
+$('#q').addEventListener('keydown', e => { if(e.key==='Enter') handleSearch(); });
+$('#prevBtn').addEventListener('click', ()=>{ if(state.page>1){ state.page--; render(); }});
+$('#nextBtn').addEventListener('click', ()=>{
+  const pages = Math.max(Math.ceil(state.items.length/state.perPage), 1);
+  if(state.page<pages){ state.page++; render(); }
+});
+$('#saveAllBtn').addEventListener('click', uploadAllFavs);
 
-        function setLoading(loading) {
-            isLoading = loading;
-            const sendButton = document.getElementById('sendButton');
-            const messageInput = document.getElementById('messageInput');
-            
-            sendButton.disabled = loading;
-            messageInput.disabled = loading;
-            sendButton.textContent = loading ? '發送中...' : '發送';
-        }
-
-        // 儲存 webhook URL 到本地 (隱藏功能)
-        document.getElementById('webhookUrl').addEventListener('input', function() {
-            localStorage.setItem('n8n-webhook-url', this.value);
-        });
-
-        // 載入儲存的 webhook URL
-        window.addEventListener('load', function() {
-            const savedUrl = localStorage.getItem('n8n-webhook-url');
-            if (savedUrl) {
-                document.getElementById('webhookUrl').value = savedUrl;
-            }
-        });
-    </script>
+renderFavs(); // 初始化收藏清單
+// URL 若有 q 參數就自動查
+if(qs.get('q')){ $('#q').value = qs.get('q'); handleSearch(); }
+</script>
 </body>
 </html>
