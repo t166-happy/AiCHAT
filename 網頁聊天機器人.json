@@ -1,0 +1,156 @@
+{
+  "name": "網頁聊天機器人",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        320,
+        192
+      ],
+      "id": "6a1ddc6d-41a4-49d4-a067-f721b227c9cc",
+      "name": "回傳結果",
+      "typeVersion": 1.4
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=你是一個友善的AI助手。請用繁體中文回應用戶的問題。\n\n用戶問題：{{ $json.body.chatInput }}\n\n請提供有幫助的回答：",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        -32,
+        192
+      ],
+      "id": "243c9867-6705-4778-a3ac-cdda848bdc02",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-nano-2025-08-07",
+          "mode": "list",
+          "cachedResultName": "gpt-5-nano-2025-08-07"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        400
+      ],
+      "id": "2e0cbed7-9c2c-42ff-9d6e-c57b33a04e12",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "z5H8lsGYquUrni4W",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook/bd428294-266a-4447-97d6-e002c6c55593",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        192
+      ],
+      "id": "00bedc2d-139d-4e06-b42d-9730848e0e1e",
+      "name": "Webhook",
+      "webhookId": "bd428294-266a-4447-97d6-e002c6c55593"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.timestamp || 'default-session' }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        32,
+        416
+      ],
+      "id": "fb6170e5-7199-4226-814a-cd8483b1d385",
+      "name": "Simple Memory"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "回傳結果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2784842b-d47c-40d9-957d-e97e2925d3e5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0056e147fc5a31719dd135ed074c7ee9c8e2b705d89b487857eaed55ecd904ac"
+  },
+  "id": "13Uw8Z4MnDFP8FpZ",
+  "tags": []
+}
