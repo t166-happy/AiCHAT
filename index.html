@@ -68,7 +68,6 @@
   .actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top: 8px; }
   .pill{ padding:6px 10px; border-radius:999px; background: #fff; border:1px solid #eee; font-size: 13px; }
 
-  .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top: 10px; }
   .pager{ display:flex; gap:8px; align-items:center; margin-top: 16px; }
   .side{
     margin-top: 10px; padding: 12px; background:#ffffffaa; border:1px solid #eee; border-radius: var(--radius);
@@ -106,8 +105,8 @@
 
 <script>
 /** ======= 設定區 ======= **/
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwsctAFw7W41tkIsZWzG6bsMcf7yLWFJ5QK7oN5miGrpNoY9jdzkT0hvQX9SMFIJMoF/exec'; // ← 換成你的 Apps Script Web App URL
-const USER_NAME = 'james su'; // 可替換成登入者名稱或你的名字
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwsctAFw7W41tkIsZWzG6bsMcf7yLWFJ5QK7oN5miGrpNoY9jdzkT0hvQX9SMFIJMoF/exec';
+const USER_NAME = 'james su'; // 可替換成登入者名稱
 
 /** ======= 小工具 ======= **/
 const $ = (s, r=document) => r.querySelector(s);
@@ -320,8 +319,7 @@ async function postToGAS(payload){
     const res = await fetch(GAS_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      mode: 'cors'
+      body: JSON.stringify(payload)
     });
     const data = await res.json().catch(()=>({}));
     return res.ok && data.ok;
