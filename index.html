@@ -315,16 +315,38 @@ async function uploadAllFavs(){
 
 /** ======= 與 GAS 通訊 ======= **/
 async function postToGAS(payload){
+  // 兩種送法：
+  // A) 預設使用 text/plain，避免瀏覽器預檢（OPTIONS）導致 CORS 問題
+  // B) 若你確認可讀回應，將 USE_PLAIN = false 改回 application/json
+  const USE_PLAIN = true;
   try{
-    const res = await fetch(GAS_ENDPOINT, {
+    const fetchOptions = {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json().catch(()=>({}));
-    return res.ok && data.ok;
+      headers: USE_PLAIN ? { 'Content-Type': 'text/plain;charset=utf-8' } : { 'Content-Type': 'application/json' },
+      body: USE_PLAIN ? JSON.stringify(payload) : JSON.stringify(payload)
+    };
+    const res = await fetch(GAS_ENDPOINT, fetchOptions);
+
+    // 嘗試讀取文字並轉 JSON（若跨網域受限，至少可看到狀態碼）
+    const text = await res.text();
+    let data = {};
+    try{ data = JSON.parse(text); }catch(e){ /* 不是 JSON 也沒關係 */ }
+
+    // 在畫面上顯示詳細錯誤訊息（方便除錯）
+    const statusBox = document.querySelector('#status');
+    if(statusBox){
+      statusBox.style.display = 'block';
+      statusBox.textContent = `WebApp 回應狀態：${res.status} ${res.statusText}` + (text ? `｜內容：${text.slice(0,200)}` : '');
+    }
+
+    return res.ok && (data.ok === true || text.includes('"ok":true'));
   }catch(e){
     console.error(e);
+    const statusBox = document.querySelector('#status');
+    if(statusBox){
+      statusBox.style.display = 'block';
+      statusBox.textContent = '連線發生錯誤：' + String(e);
+    }
     return false;
   }
 }
