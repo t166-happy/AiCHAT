@@ -74,6 +74,21 @@
   }
   .side h3{ margin: 0 0 6px; font-size: 16px; }
   .small{ font-size: 12px; color: var(--muted); }
+
+  /* 篩選＋輪播 */
+  .filterbar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px; }
+  .filterbar input, .filterbar select{ padding:8px 12px; border-radius:999px; border:1px solid #ddd; background:#fff; }
+  .filterbar button{ padding:8px 12px; border-radius:999px; border:1px solid #eee; background:#fff; cursor:pointer; }
+  .filterbar button:hover{ background:#f7f7f7; }
+
+  .carousel{ position: relative; margin-top:12px; }
+  .carousel-frame{ position: relative; overflow: hidden; border-radius: var(--radius); }
+  .carousel-inner{ display:flex; transition: transform .5s ease; }
+  .carousel-controls{ display:flex; gap:8px; align-items:center; justify-content:center; margin-top:10px; }
+  .carousel-btn{ padding:8px 12px; border-radius:999px; border:1px solid #eee; background:#fff; cursor:pointer; }
+  .carousel-dots{ display:flex; gap:6px; align-items:center; justify-content:center; }
+  .carousel-dot{ width:8px; height:8px; border-radius:50%; background:#ddd; }
+  .carousel-dot.active{ background:#999; }
 </style>
 </head>
 <body>
@@ -90,6 +105,23 @@
       <option value="10">最新 10 筆</option>
       <option value="20">最新 20 筆</option>
     </select>
+    <button id="toggleViewBtn" title="在最新推薦中切換輪播/網格">切換輪播</button>
+  </div>
+  <div class="filterbar" id="filters">
+    <select id="gradeFilter">
+      <option value="all" selected>年級：全部</option>
+      <option value="low">低年級（1–2）</option>
+      <option value="mid">中年級（3–4）</option>
+      <option value="high">高年級（5–6）</option>
+      <option value="1">一年級</option>
+      <option value="2">二年級</option>
+      <option value="3">三年級</option>
+      <option value="4">四年級</option>
+      <option value="5">五年級</option>
+      <option value="6">六年級</option>
+    </select>
+    <input id="tagFilter" type="text" placeholder="主題標籤（逗號分隔，例如：閱讀素養, 品格）" />
+    <button id="clearFilters">清除篩選</button>
   </div>
   <div id="status" class="notice" style="display:none"></div>
 </header>
@@ -118,15 +150,17 @@ const USER_NAME = 'james su'; // 可替換成登入者名稱
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
 const qs = new URLSearchParams(location.search);
-let viewingLatest = false; // 目前是否在看「最新推薦」
 const sanitize = (s='') => (s+'').replace(/[<>]/g, m=>({ '<':'&lt;','>':'&gt;' }[m]));
 
 /** ======= 狀態 ======= **/
+let viewingLatest = false; // 是否在看「最新推薦」
 let state = {
-  items: [],    // 搜尋結果（正規化）
-  page: 1,      // 每頁 2 本
+  items: [],         // 當前顯示清單
+  page: 1,           // 每頁 2 本（網格模式）
   perPage: 2,
-  favs: loadFavs() // 收藏清單（localStorage）
+  favs: loadFavs(),  // 收藏清單（localStorage）
+  viewMode: 'carousel',          // 最新推薦預設輪播；搜尋以網格
+  filters: { grade: 'all', tags: [] }
 };
 
 function loadFavs(){
@@ -170,7 +204,9 @@ function pickFromGB(item){
     publishedDate: v.publishedDate || '',
     description: v.description || '',
     cover: v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail || '',
-    isbn
+    isbn,
+    maturity: v.maturityRating || '',
+    categories: v.categories || []
   };
 }
 function pickFromOLSearch(doc){
@@ -184,32 +220,135 @@ function pickFromOLSearch(doc){
     publishedDate: doc.first_publish_year || '',
     description: doc.subtitle || '',
     cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : '',
-    isbn
+    isbn,
+    maturity: '',
+    categories: []
   };
 }
 
-// 從 GAS 讀取最新推薦
+/** ======= 未成年不得閱覽過濾 ======= **/
+function isUnderageRestricted(book){
+  const mature = (book.maturity||'').toUpperCase() === 'MATURE';
+  const cats = (book.categories||[]).join(' ').toLowerCase();
+  const text = [book.title, book.description].filter(Boolean).join(' ').toLowerCase();
+  const badWords = ['18+','限制級','未滿十八','成人','情色','色情','erotic','porn','hentai','nsfw'];
+  const inCats = ['erotica','adult','sexuality'].some(k=>cats.includes(k));
+  const inText = badWords.some(k=>text.includes(k));
+  return mature || inCats || inText;
+}
+
+/** ======= 依 ISBN 補齊資料（封面/描述/作者…） ======= **/
+async function getByISBN(isbn){
+  if(!isbn) return null;
+  // 先試 Google Books
+  try{
+    const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('GB fail');
+    const data = await res.json();
+    if(!data.items?.length) throw new Error('no items');
+    const v = data.items[0].volumeInfo || {};
+    return {
+      title: v.title || '',
+      authors: v.authors || [],
+      publisher: v.publisher || '',
+      publishedDate: v.publishedDate || '',
+      description: v.description || '',
+      cover: v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail || '',
+      maturity: v.maturityRating || '',
+      categories: v.categories || []
+    };
+  }catch(e){
+    // 改用 Open Library
+    try{
+      const meta = await fetch(`https://openlibrary.org/isbn/${encodeURIComponent(isbn)}.json`).then(r=>r.json());
+      let authors = [];
+      if(Array.isArray(meta.authors)){
+        const names = await Promise.all(meta.authors.map(a =>
+          fetch(`https://openlibrary.org${a.key}.json`).then(r=>r.json()).then(j=>j.name).catch(()=>null)
+        ));
+        authors = names.filter(Boolean);
+      }
+      let description = '';
+      try{
+        if(meta.works?.length){
+          const work = await fetch(`https://openlibrary.org${meta.works[0].key}.json`).then(r=>r.json());
+          description = typeof work.description === 'string' ? work.description : (work.description?.value || '');
+        }
+      }catch(_){}
+      const cover = meta.covers?.length ? `https://covers.openlibrary.org/b/id/${meta.covers[0]}-M.jpg` : '';
+      return {
+        title: meta.title || '',
+        authors,
+        publisher: (meta.publishers && meta.publishers[0]) || '',
+        publishedDate: meta.publish_date || '',
+        description,
+        cover,
+        maturity: '',
+        categories: []
+      };
+    }catch(_){ return null; }
+  }
+}
+async function enrichLatest(items){
+  const enriched = await Promise.all(items.map(async (b)=>{
+    if(!b.isbn) return b;
+    const more = await getByISBN(b.isbn).catch(()=>null);
+    if(!more) return b;
+    return {
+      ...b,
+      title: b.title || more.title,
+      authors: (b.authors && b.authors.length) ? b.authors : (more.authors || []),
+      publisher: b.publisher || more.publisher,
+      publishedDate: b.publishedDate || more.publishedDate,
+      description: b.description || more.description,
+      cover: b.cover || more.cover,
+      maturity: b.maturity || more.maturity,
+      categories: (b.categories && b.categories.length) ? b.categories : (more.categories || [])
+    };
+  }));
+  return enriched;
+}
+
+/** ======= 從 GAS 讀取最新推薦 ======= **/
 async function fetchLatest(limit=6){
   const url = `${GAS_ENDPOINT}?limit=${encodeURIComponent(limit)}`;
   const res = await fetch(url);
   const data = await res.json();
   if(!res.ok || !data.ok) throw new Error('讀取最新推薦失敗');
-  const items = (data.items||[]).map(it => ({
+  let items = (data.items||[]).map(it => ({
     id: it.isbn || (it.title||'') + (it.authors||''),
     source: it.source || 'sheet',
     title: it.title || '',
     authors: Array.isArray(it.authors) ? it.authors : (it.authors ? String(it.authors).split(',').map(s=>s.trim()).filter(Boolean) : []),
     publisher: it.publisher || '',
     publishedDate: it.publishedDate || '',
-    description: it.reason || '',
+    description: '',   // 描述改由 ISBN 補齊
     cover: '',
-    isbn: it.isbn || ''
+    isbn: it.isbn || '',
+    reason: it.reason || '',   // 已存推薦理由
+    grade: it.grade || '',     // 年級（選填：若表中有欄位）
+    tags: it.tags || '',       // 標籤（選填：若表中有欄位）
+    maturity: '',
+    categories: []
   }));
+  // 補齊封面與介紹
+  items = await enrichLatest(items);
+  // 未成年不得閱覽 過濾
+  const before = items.length;
+  items = items.filter(b => !isUnderageRestricted(b));
+  if(before !== items.length){
+    const statusBox = $('#status');
+    if(statusBox){
+      statusBox.style.display='block';
+      statusBox.textContent = `已隱藏 ${before - items.length} 本標記為未成年不得閱覽的書籍。`;
+    }
+  }
   return items;
 }
 
-/** ======= 渲染（兩本一頁） ======= **/
-function paginate(items){ // 2 本一頁
+/** ======= 分頁（兩本一頁） ======= **/
+function paginate(items){
   const out = [];
   for(let i=0;i<items.length;i+=state.perPage){
     out.push(items.slice(i, i+state.perPage));
@@ -217,22 +356,122 @@ function paginate(items){ // 2 本一頁
   return out;
 }
 
+/** ======= 篩選（年級 / 標籤） ======= **/
+function getFilteredItems(){
+  const g = state.filters?.grade || 'all';
+  const tagStr = ($('#tagFilter')?.value || '').trim();
+  const tokens = tagStr ? tagStr.split(/[\s,，、]+/).map(t=>t.trim().toLowerCase()).filter(Boolean) : [];
+
+  function gradeMatch(b){
+    if(g==='all' || !g) return true;
+    const raw = (b.grade || '').toString();
+    const num = /\d+/.test(raw) ? parseInt(raw.match(/\d+/)[0],10) : null;
+    const hasLow = /低/.test(raw), hasMid=/中/.test(raw), hasHigh=/高/.test(raw);
+    if(g==='low') return hasLow || (num && num<=2);
+    if(g==='mid') return hasMid || (num && num>=3 && num<=4);
+    if(g==='high') return hasHigh || (num && num>=5 && num<=6);
+    if(/^[1-6]$/.test(g)) return num===parseInt(g,10);
+    return true;
+  }
+  function tagMatch(b){
+    if(!tokens.length) return true;
+    const src = (Array.isArray(b.tags)? b.tags.join(',') : (b.tags||'')) + ' ' + (b.title||'') + ' ' + (b.description||'');
+    const lower = src.toLowerCase();
+    return tokens.every(t => lower.includes(t));
+  }
+  return state.items.filter(b => gradeMatch(b) && tagMatch(b));
+}
+
+/** ======= 渲染（網格/輪播） ======= **/
+let carouselTimer = null;
+
 function render(){
-  const pages = paginate(state.items);
+  // 最新推薦 + 輪播模式
+  if(viewingLatest && state.viewMode === 'carousel'){
+    return renderCarousel();
+  }
+
+  const items = getFilteredItems();
+  const pages = paginate(items);
   const pageCount = Math.max(pages.length, 1);
   const current = pages[state.page-1] || [];
 
   const grid = $('#grid');
   grid.innerHTML = '';
-
   current.forEach(book => grid.appendChild(renderCard(book)));
 
-  // 分頁列
   const pager = $('#pager');
-  $('#pageInfo').textContent = (viewingLatest ? '最新推薦｜' : '') + `第 ${state.page}/${pageCount} 頁（共 ${state.items.length} 本）`;
+  $('#pageInfo').textContent = (viewingLatest ? '最新推薦｜' : '') + `第 ${state.page}/${pageCount} 頁（共 ${items.length} 本）`;
   pager.style.display = pageCount > 1 ? 'flex' : 'none';
   $('#prevBtn').disabled = state.page <= 1;
   $('#nextBtn').disabled = state.page >= pageCount;
+}
+
+function renderCarousel(){
+  const grid = $('#grid');
+  grid.innerHTML = '';
+  const data = getFilteredItems();
+  if(!data.length){
+    grid.innerHTML = '<div class="notice">（沒有符合篩選的書籍）</div>';
+    $('#pager').style.display='none';
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'carousel';
+  const frame = document.createElement('div'); frame.className='carousel-frame';
+  const inner = document.createElement('div'); inner.className='carousel-inner';
+
+  data.forEach(b =>{
+    const slide = document.createElement('div');
+    slide.style.minWidth = '100%';
+    slide.appendChild(renderCard(b));
+    inner.appendChild(slide);
+  });
+
+  frame.appendChild(inner);
+  wrap.appendChild(frame);
+
+  const ctrls = document.createElement('div'); ctrls.className='carousel-controls';
+  const prev = document.createElement('button'); prev.className='carousel-btn'; prev.textContent='←';
+  const next = document.createElement('button'); next.className='carousel-btn'; next.textContent='→';
+  const dots = document.createElement('div'); dots.className='carousel-dots';
+
+  let idx = 0;
+  function update(){
+    inner.style.transform = `translateX(-${idx*100}%)`;
+    dots.querySelectorAll('.carousel-dot').forEach((d,i)=> d.classList.toggle('active', i===idx));
+  }
+
+  prev.addEventListener('click', ()=>{ idx = (idx-1+data.length)%data.length; update(); });
+  next.addEventListener('click', ()=>{ idx = (idx+1)%data.length; update(); });
+
+  data.forEach((_,i)=>{
+    const d = document.createElement('div');
+    d.className='carousel-dot' + (i===0?' active':'');
+    d.addEventListener('click', ()=>{ idx=i; update(); });
+    dots.appendChild(d);
+  });
+
+  ctrls.appendChild(prev); ctrls.appendChild(dots); ctrls.appendChild(next);
+  wrap.appendChild(ctrls);
+  grid.appendChild(wrap);
+
+  // 15 秒自動輪播，滑鼠移入/視窗隱藏時暫停
+  if(carouselTimer){ clearInterval(carouselTimer); carouselTimer = null; }
+  function startAuto(){
+    if(carouselTimer) return;
+    carouselTimer = setInterval(()=>{ idx = (idx+1)%data.length; update(); }, 15000);
+  }
+  function stopAuto(){ if(carouselTimer){ clearInterval(carouselTimer); carouselTimer=null; } }
+  startAuto();
+  frame.addEventListener('mouseenter', stopAuto);
+  frame.addEventListener('mouseleave', startAuto);
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) stopAuto(); else startAuto(); });
+
+  const pager = $('#pager');
+  $('#pageInfo').textContent = '最新推薦｜輪播模式（共 ' + data.length + ' 本）';
+  pager.style.display = 'none';
 }
 
 function renderCard(book){
@@ -250,14 +489,16 @@ function renderCard(book){
         <button class="uploadBtn" title="只上傳這一本到雲端">上傳到雲端</button>
         <span class="pill">${book.source === 'google_books' ? 'Google Books' : 'Open Library'}</span>
       </div>
-      <label class="meta"><strong>推薦理由</strong></label>
+      ${viewingLatest && (book.reason||'') ? `<div class="meta"><strong>已存推薦理由：</strong>${sanitize(book.reason).replace(/\n/g,'<br>')}</div>` : ''}
+      <label class="meta"><strong>推薦理由（可編輯）</strong></label>
       <textarea class="reason" placeholder="寫下你推薦這本書的原因"></textarea>
     </div>
   `;
 
   const reasonKey = `reason_${book.isbn || book.id}`;
   const reasonEl = card.querySelector('.reason');
-  reasonEl.value = localStorage.getItem(reasonKey) || '';
+  // 本機暫存優先，否則（在最新模式）預填回表的推薦理由
+  reasonEl.value = localStorage.getItem(reasonKey) || (viewingLatest ? (book.reason || '') : '');
 
   reasonEl.addEventListener('input', () => {
     localStorage.setItem(reasonKey, reasonEl.value);
@@ -342,53 +583,51 @@ async function uploadAllFavs(){
 
 /** ======= 與 GAS 通訊 ======= **/
 async function postToGAS(payload){
-  // 兩種送法：
-  // A) 預設使用 text/plain，避免瀏覽器預檢（OPTIONS）導致 CORS 問題
-  // B) 若你確認可讀回應，將 USE_PLAIN = false 改回 application/json
+  // 使用 text/plain 避免預檢（OPTIONS）導致的 CORS
   const USE_PLAIN = true;
   try{
-    const fetchOptions = {
+    const res = await fetch(GAS_ENDPOINT, {
       method: 'POST',
       headers: USE_PLAIN ? { 'Content-Type': 'text/plain;charset=utf-8' } : { 'Content-Type': 'application/json' },
-      body: USE_PLAIN ? JSON.stringify(payload) : JSON.stringify(payload)
-    };
-    const res = await fetch(GAS_ENDPOINT, fetchOptions);
-
-    // 嘗試讀取文字並轉 JSON（若跨網域受限，至少可看到狀態碼）
+      body: JSON.stringify(payload)
+    });
     const text = await res.text();
-    let data = {};
-    try{ data = JSON.parse(text); }catch(e){ /* 不是 JSON 也沒關係 */ }
-
-    // 在畫面上顯示詳細錯誤訊息（方便除錯）
-    const statusBox = document.querySelector('#status');
+    let data = {}; try{ data = JSON.parse(text); }catch(_){}
+    const statusBox = $('#status');
     if(statusBox){
       statusBox.style.display = 'block';
       statusBox.textContent = `WebApp 回應狀態：${res.status} ${res.statusText}` + (text ? `｜內容：${text.slice(0,200)}` : '');
     }
-
     return res.ok && (data.ok === true || text.includes('"ok":true'));
   }catch(e){
     console.error(e);
-    const statusBox = document.querySelector('#status');
-    if(statusBox){
-      statusBox.style.display = 'block';
-      statusBox.textContent = '連線發生錯誤：' + String(e);
-    }
+    const statusBox = $('#status');
+    if(statusBox){ statusBox.style.display = 'block'; statusBox.textContent = '連線發生錯誤：' + String(e); }
     return false;
   }
 }
 
 /** ======= 互動 ======= **/
 async function handleSearch(){
-  viewingLatest = false; // 回到搜尋模式
+  viewingLatest = false;           // 回到搜尋模式
+  state.viewMode = 'grid';         // 搜尋使用網格模式
   const q = $('#q').value.trim();
   if(!q){ alert('請輸入關鍵字'); return; }
   $('#status').style.display = 'block'; $('#status').textContent = '查詢中…';
   try{
-    const items = await searchBooks(q, 0, 20);
+    const itemsRaw = await searchBooks(q, 0, 20);
+    // 未成年不得閱覽過濾
+    let items = itemsRaw;
+    const before = items.length;
+    items = items.filter(b => !isUnderageRestricted(b));
+    if(before !== items.length){
+      $('#status').style.display='block';
+      $('#status').textContent = `已隱藏 ${before - items.length} 本標記為未成年不得閱覽的書籍。`;
+    } else {
+      $('#status').style.display = 'none';
+    }
     state.items = items;
     state.page = 1;
-    $('#status').style.display = 'none';
     render(); // 兩本一頁
   }catch(e){
     $('#status').textContent = '查詢失敗，請稍後再試';
@@ -399,7 +638,8 @@ $('#searchBtn').addEventListener('click', handleSearch);
 $('#q').addEventListener('keydown', e => { if(e.key==='Enter') handleSearch(); });
 $('#prevBtn').addEventListener('click', ()=>{ if(state.page>1){ state.page--; render(); }});
 $('#nextBtn').addEventListener('click', ()=>{
-  const pages = Math.max(Math.ceil(state.items.length/state.perPage), 1);
+  const items = getFilteredItems();
+  const pages = Math.max(Math.ceil(items.length/state.perPage), 1);
   if(state.page<pages){ state.page++; render(); }
 });
 $('#saveAllBtn').addEventListener('click', uploadAllFavs);
@@ -407,8 +647,9 @@ $('#latestBtn').addEventListener('click', async ()=>{
   try{
     $('#status').style.display='block'; $('#status').textContent='讀取最新推薦中…';
     const limit = parseInt($('#latestLimit').value,10) || 6;
-    const items = await fetchLatest(limit);
+    let items = await fetchLatest(limit);
     viewingLatest = true;
+    state.viewMode = 'carousel';  // 最新推薦預設輪播
     state.items = items;
     state.page = 1;
     $('#status').style.display='none';
@@ -417,9 +658,30 @@ $('#latestBtn').addEventListener('click', async ()=>{
     $('#status').style.display='block'; $('#status').textContent='讀取最新推薦失敗';
   }
 });
+$('#toggleViewBtn').addEventListener('click', ()=>{
+  if(!viewingLatest){
+    alert('輪播僅用於「最新推薦」清單。請先點「最新推薦」。');
+    return;
+  }
+  state.viewMode = state.viewMode === 'carousel' ? 'grid' : 'carousel';
+  render();
+});
+
+// 篩選事件
+$('#gradeFilter').addEventListener('change', ()=>{
+  state.filters.grade = $('#gradeFilter').value; state.page = 1; render();
+});
+function debounce(fn, ms){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }; }
+$('#tagFilter').addEventListener('input', debounce(()=>{
+  state.filters.tags = ($('#tagFilter').value||''); state.page = 1; render();
+}, 250));
+$('#clearFilters').addEventListener('click', ()=>{
+  $('#gradeFilter').value='all'; $('#tagFilter').value=''; state.filters={grade:'all',tags:[]}; state.page=1; render();
+});
 
 renderFavs(); // 初始化收藏清單
-// URL 若有 q 參數就自動查
+
+// 可選：網址帶 q 直接搜尋；否則也可一開頁就按「最新推薦」載入
 if(qs.get('q')){ $('#q').value = qs.get('q'); handleSearch(); }
 </script>
 </body>
