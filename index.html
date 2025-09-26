@@ -169,16 +169,6 @@ function loadFavs(){
 function saveFavs(){
   localStorage.setItem('book_favs', JSON.stringify(state.favs));
   renderFavs();
-  (async function autoLoad(){
-  try{
-    const items = await fetchLatest(6);
-    viewingLatest = true;
-    state.viewMode = 'carousel';
-    state.items = items;
-    state.page = 1;
-    render();
-  }catch(e){}
-})();
 }
 function inFavs(isbn){ return state.favs.some(x => x.isbn === isbn); }
 
@@ -729,8 +719,26 @@ $('#clearFilters').addEventListener('click', ()=>{
 
 renderFavs(); // 初始化收藏清單
 
-// 可選：網址帶 q 直接搜尋
-if(qs.get('q')){ $('#q').value = qs.get('q'); handleSearch(); }
+// ===== 自動載入最新推薦：沒有 ?q= 參數時，開頁即讀取並啟用輪播 =====
+(async function autoLoadLatest(){
+  if (qs.get('q')) return; // 若網址帶 q 就走搜尋
+  try{
+    $('#status').style.display='block';
+    $('#status').textContent='讀取最新推薦中…';
+    const limit = parseInt($('#latestLimit').value,10) || 6;
+    let items = await fetchLatest(limit);
+    viewingLatest = true;
+    state.viewMode = 'carousel'; // 預設輪播
+    state.items = items;
+    state.page = 1;
+    $('#status').style.display='none';
+    render();
+  }catch(e){
+    $('#status').style.display='block';
+    $('#status').textContent='讀取最新推薦失敗';
+    console.error(e);
+  }
+})();
 </script>
 </body>
 </html>
