@@ -327,8 +327,8 @@ async function fetchLatest(limit=6){
     cover: '',
     isbn: it.isbn || '',
     reason: it.reason || '',   // 已存推薦理由
-    grade: it.grade || '',     // 年級（選填：若表中有欄位）
-    tags: it.tags || '',       // 標籤（選填：若表中有欄位）
+    grade: it.grade || '',     // 年級（可空）
+    tags: it.tags || '',       // 標籤（可空）
     maturity: '',
     categories: []
   }));
@@ -492,22 +492,55 @@ function renderCard(book){
       ${viewingLatest && (book.reason||'') ? `<div class="meta"><strong>已存推薦理由：</strong>${sanitize(book.reason).replace(/\n/g,'<br>')}</div>` : ''}
       <label class="meta"><strong>推薦理由（可編輯）</strong></label>
       <textarea class="reason" placeholder="寫下你推薦這本書的原因"></textarea>
+
+      <div class="meta" style="margin-top:8px;">
+        <strong>年級</strong>：
+        <select class="grade" style="margin-right:8px;">
+          <option value="">（未指定）</option>
+          <option value="low">低年級（1–2）</option>
+          <option value="mid">中年級（3–4）</option>
+          <option value="high">高年級（5–6）</option>
+          <option value="1">一年級</option>
+          <option value="2">二年級</option>
+          <option value="3">三年級</option>
+          <option value="4">四年級</option>
+          <option value="5">五年級</option>
+          <option value="6">六年級</option>
+        </select>
+        <strong>主題標籤</strong>：
+        <input class="tags" type="text" placeholder="逗號分隔，例如：閱讀素養, 品格" style="width:60%;" />
+      </div>
     </div>
   `;
 
   const reasonKey = `reason_${book.isbn || book.id}`;
   const reasonEl = card.querySelector('.reason');
-  // 本機暫存優先，否則（在最新模式）預填回表的推薦理由
-  reasonEl.value = localStorage.getItem(reasonKey) || (viewingLatest ? (book.reason || '') : '');
+  const gradeEl  = card.querySelector('.grade');
+  const tagsEl   = card.querySelector('.tags');
 
+  // 預設值：localStorage 優先；若在最新推薦且本機無值，則帶入試算表中的值
+  reasonEl.value = localStorage.getItem(reasonKey) || (viewingLatest ? (book.reason || '') : '');
+  gradeEl.value  = (book.grade || localStorage.getItem(`grade_${book.isbn||book.id}`) || '');
+  tagsEl.value   = (Array.isArray(book.tags) ? book.tags.join(', ') : (book.tags || localStorage.getItem(`tags_${book.isbn||book.id}`) || ''));
+
+  // 即時同步到本機與收藏清單
   reasonEl.addEventListener('input', () => {
     localStorage.setItem(reasonKey, reasonEl.value);
-    // 若在收藏清單裡，也同步更新理由
     const idx = state.favs.findIndex(x => x.isbn === book.isbn);
     if(idx !== -1){ state.favs[idx].reason = reasonEl.value; saveFavs(); }
   });
+  gradeEl.addEventListener('change', () => {
+    localStorage.setItem(`grade_${book.isbn||book.id}`, gradeEl.value);
+    const idx = state.favs.findIndex(x => x.isbn === book.isbn);
+    if(idx !== -1){ state.favs[idx].grade = gradeEl.value; saveFavs(); }
+  });
+  tagsEl.addEventListener('input', () => {
+    localStorage.setItem(`tags_${book.isbn||book.id}`, tagsEl.value);
+    const idx = state.favs.findIndex(x => x.isbn === book.isbn);
+    if(idx !== -1){ state.favs[idx].tags = tagsEl.value; saveFavs(); }
+  });
 
-  // 加入收藏
+  // 加入收藏（含 grade/tags）
   const favBtn = card.querySelector('.favBtn');
   favBtn.addEventListener('click', () => {
     if(inFavs(book.isbn)){
@@ -521,14 +554,16 @@ function renderCard(book){
         publisher: book.publisher || '',
         publishedDate: book.publishedDate || '',
         reason: reasonEl.value || '',
-        source: book.source || ''
+        source: book.source || '',
+        grade: gradeEl.value || '',
+        tags: tagsEl.value || ''
       });
       favBtn.textContent = '✓ 已加入';
     }
     saveFavs();
   });
 
-  // 單本上傳
+  // 單本上傳（帶上 grade/tags）
   const uploadBtn = card.querySelector('.uploadBtn');
   uploadBtn.addEventListener('click', async () => {
     const payload = {
@@ -540,7 +575,9 @@ function renderCard(book){
         publisher: book.publisher || '',
         publishedDate: book.publishedDate || '',
         reason: reasonEl.value || '',
-        source: book.source || ''
+        source: book.source || '',
+        grade: gradeEl.value || '',
+        tags: tagsEl.value || ''
       }]
     };
     uploadBtn.disabled = true; uploadBtn.textContent = '上傳中…';
@@ -562,6 +599,7 @@ function renderFavs(){
     row.style.margin = '6px 0';
     row.innerHTML = `
       <span>${sanitize(b.title)} <span class="small">（${sanitize(b.isbn||'無ISBN')}）</span></span>
+      <div class="small">年級：${sanitize(b.grade||'—')}｜標籤：${sanitize(Array.isArray(b.tags)? b.tags.join(', ') : (b.tags||'—'))}</div>
       <button data-i="${i}" class="rm" style="margin-left:8px;">移除</button>
     `;
     box.appendChild(row);
@@ -681,7 +719,7 @@ $('#clearFilters').addEventListener('click', ()=>{
 
 renderFavs(); // 初始化收藏清單
 
-// 可選：網址帶 q 直接搜尋；否則也可一開頁就按「最新推薦」載入
+// 可選：網址帶 q 直接搜尋
 if(qs.get('q')){ $('#q').value = qs.get('q'); handleSearch(); }
 </script>
 </body>
