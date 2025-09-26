@@ -457,11 +457,11 @@ function renderCarousel(){
   wrap.appendChild(ctrls);
   grid.appendChild(wrap);
 
-  // 15 秒自動輪播，滑鼠移入/視窗隱藏時暫停
+  // 5 秒自動輪播，滑鼠移入/視窗隱藏時暫停
   if(carouselTimer){ clearInterval(carouselTimer); carouselTimer = null; }
   function startAuto(){
     if(carouselTimer) return;
-    carouselTimer = setInterval(()=>{ idx = (idx+1)%data.length; update(); }, 15000);
+    carouselTimer = setInterval(()=>{ idx = (idx+1)%data.length; update(); }, 5000);
   }
   function stopAuto(){ if(carouselTimer){ clearInterval(carouselTimer); carouselTimer=null; } }
   startAuto();
