@@ -169,6 +169,16 @@ function loadFavs(){
 function saveFavs(){
   localStorage.setItem('book_favs', JSON.stringify(state.favs));
   renderFavs();
+  (async function autoLoad(){
+  try{
+    const items = await fetchLatest(6);
+    viewingLatest = true;
+    state.viewMode = 'carousel';
+    state.items = items;
+    state.page = 1;
+    render();
+  }catch(e){}
+})();
 }
 function inFavs(isbn){ return state.favs.some(x => x.isbn === isbn); }
 
